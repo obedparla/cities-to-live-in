@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "WebFetch(domain:robinebers.notion.site)",
+      "WebSearch",
+      "WebFetch(domain:ec.europa.eu)",
+      "WebFetch(domain:gisco-services.ec.europa.eu)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}
