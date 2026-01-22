@@ -249,6 +249,8 @@ src/
 | Open-Meteo (weather) | ✅ temp, sunshine | 100/100 cities |
 | Open-Meteo (air) | ✅ AQI | 100/100 cities |
 | OSM Overpass | ✅ cultural, parks | 100/100 cities |
+| OSM Overpass | ✅ infrastructure (bike, coworking, uni, trains) | Ready |
+| OSM Overpass | ✅ nature (beaches, forests, peaks) | Ready |
 | Wikipedia | ✅ descriptions | 96/100 cities |
 | Eurostat population | ✅ DE1001V | 100/100 cities |
 | Eurostat income | ✅ EC3040V | 91/100 cities |
@@ -256,6 +258,9 @@ src/
 | Eurostat rent | ✅ SA1049V | 91/100 cities |
 | Eurostat safety | ✅ PS3290V | 47/100 cities |
 | Eurostat education | ✅ TE2031I | 97/100 cities |
+| Eurostat healthcare | ✅ hlth_rs_bds (country-level) | Ready |
+| Eurostat expat | ✅ migr_pop1ctz (country-level) | Ready |
+| Internet speed | ✅ Ookla 2024 data (country-level) | Ready |
 
 ### ✅ Completed
 
@@ -294,7 +299,7 @@ src/
 | Eurostat | `urb_percep` | safety | PS3290V | 47/100 |
 | Eurostat | `urb_ceduc` | education | TE2031I | 97/100 |
 
-**Note**: Healthcare removed (no suitable dataset). Safety uses perception data (% who feel safe).
+**Note**: Safety uses perception data (% who feel safe). Healthcare now uses country-level hospital beds data.
 
 ### ✅ All Features Complete
 
@@ -305,7 +310,30 @@ src/
 | 6 | Search autocomplete | ✅ Complete |
 | - | Delete demo files | ✅ Complete |
 | - | Cron refresh | Low - manual fetch works |
-| - | Expat % metric | Low - no clear Eurostat dataset |
+
+### ✅ Phase 7: Additional Metrics (Implemented Jan 2026)
+
+| # | Feature | Source | Status | Notes |
+|---|---------|--------|--------|-------|
+| 1 | Bike Infrastructure | OSM Overpass | ✅ Done | Cycleways + designated bike routes |
+| 2 | Coworking Spaces | OSM Overpass | ✅ Done | amenity=coworking_space |
+| 3 | Universities | OSM Overpass | ✅ Done | amenity=university |
+| 4 | Train Stations | OSM Overpass | ✅ Done | railway=station + halt |
+| 5 | Healthcare Quality | Eurostat | ✅ Done | hlth_rs_bds (beds per 100k, country-level) |
+| 6 | Water Quality | EEA API | Skipped | Complex API, low priority |
+| 7 | Expat Community % | Eurostat | ✅ Done | migr_pop1ctz (foreign-born population) |
+| 8 | Nature Proximity | OSM Overpass | ✅ Done | Beaches, forests, peaks within 30km |
+| 9 | Internet Speed | Ookla 2024 data | ✅ Done | Static country-level data |
+
+#### New Categories Added to Scoring (19 total)
+- `bike_paths` - Bike Infrastructure (higherBetter: true)
+- `coworking` - Coworking Spaces (higherBetter: true)
+- `universities` - Universities (higherBetter: true)
+- `train_stations` - Rail Connectivity (higherBetter: true)
+- `healthcare` - Healthcare Quality (higherBetter: true, country-level)
+- `expat` - Expat Community (higherBetter: true, country-level)
+- `nature` - Nature Proximity (higherBetter: true)
+- `internet` - Internet Speed (higherBetter: true, country-level)
 
 ### Known Limitations
 

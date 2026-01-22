@@ -11,13 +11,9 @@ import { Badge } from '@/components/ui/badge'
 import {
   SlidersHorizontal,
   Database,
-  Loader2,
   GitCompare,
-  CloudSun,
-  Wind,
-  Trees,
-  BarChart3,
   X,
+  RefreshCw,
 } from 'lucide-react'
 import type { Id } from '../../../convex/_generated/dataModel'
 import type { CityScore } from '../../../convex/scoring'
@@ -61,7 +57,6 @@ function CitiesPage() {
   )
   const [searchQuery, setSearchQuery] = useState('')
   const [showFilters, setShowFilters] = useState(false)
-  const [fetching, setFetching] = useState<string | null>(null)
 
   const cities = useQuery(api.scoring.getCitiesWithScores, {
     weights,
@@ -69,10 +64,6 @@ function CitiesPage() {
   })
 
   const seedCities = useAction(api.actions.seedCities.seedCities)
-  const fetchWeather = useAction(api.actions.fetchAllData.fetchWeatherForAllCities)
-  const fetchAirQuality = useAction(api.actions.fetchAllData.fetchAirQualityForAllCities)
-  const fetchAmenities = useAction(api.actions.fetchAllData.fetchAmenitiesForAllCities)
-  const fetchEurostat = useAction(api.actions.fetchAllData.fetchEurostatForAllCities)
 
   const filteredCities = cities?.filter(
     (c: CityScore) =>
@@ -97,50 +88,6 @@ function CitiesPage() {
     } catch (e) {
       console.error('Seed failed:', e)
     }
-  }
-
-  const handleFetchWeather = async () => {
-    setFetching('weather')
-    try {
-      const result = await fetchWeather()
-      console.log('Weather fetch result:', result)
-    } catch (e) {
-      console.error('Weather fetch failed:', e)
-    }
-    setFetching(null)
-  }
-
-  const handleFetchAirQuality = async () => {
-    setFetching('air')
-    try {
-      const result = await fetchAirQuality()
-      console.log('Air quality fetch result:', result)
-    } catch (e) {
-      console.error('Air quality fetch failed:', e)
-    }
-    setFetching(null)
-  }
-
-  const handleFetchAmenities = async () => {
-    setFetching('amenities')
-    try {
-      const result = await fetchAmenities()
-      console.log('Amenities fetch result:', result)
-    } catch (e) {
-      console.error('Amenities fetch failed:', e)
-    }
-    setFetching(null)
-  }
-
-  const handleFetchEurostat = async () => {
-    setFetching('eurostat')
-    try {
-      const result = await fetchEurostat()
-      console.log('Eurostat fetch result:', result)
-    } catch (e) {
-      console.error('Eurostat fetch failed:', e)
-    }
-    setFetching(null)
   }
 
   const hasAnyScores = cities?.some((c: CityScore) => c.totalScore > 0)
@@ -191,60 +138,16 @@ function CitiesPage() {
     <div className="min-h-screen bg-gray-50">
       <div className="max-w-7xl mx-auto px-4 py-6">
         {!hasAnyScores && (
-          <div className="mb-6 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
-            <p className="text-yellow-800 mb-3">
-              Cities loaded but no metrics data yet. Fetch data to see scores:
+          <div className="mb-6 p-4 bg-yellow-50 border border-yellow-200 rounded-lg flex items-center justify-between">
+            <p className="text-yellow-800">
+              Cities loaded but no metrics data yet.
             </p>
-            <div className="flex gap-2 flex-wrap">
-              <Button
-                onClick={handleFetchWeather}
-                disabled={fetching !== null}
-                variant="outline"
-              >
-                {fetching === 'weather' ? (
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                ) : (
-                  <CloudSun className="mr-2" size={16} />
-                )}
-                Fetch Weather Data
+            <a href="/update">
+              <Button variant="outline">
+                <RefreshCw className="mr-2" size={16} />
+                Fetch All Data
               </Button>
-              <Button
-                onClick={handleFetchAirQuality}
-                disabled={fetching !== null}
-                variant="outline"
-              >
-                {fetching === 'air' ? (
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                ) : (
-                  <Wind className="mr-2" size={16} />
-                )}
-                Fetch Air Quality
-              </Button>
-              <Button
-                onClick={handleFetchAmenities}
-                disabled={fetching !== null}
-                variant="outline"
-              >
-                {fetching === 'amenities' ? (
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                ) : (
-                  <Trees className="mr-2" size={16} />
-                )}
-                Fetch Amenities (OSM)
-              </Button>
-              <Button
-                onClick={handleFetchEurostat}
-                disabled={fetching !== null}
-                variant="outline"
-              >
-                {fetching === 'eurostat' ? (
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                ) : (
-                  <BarChart3 className="mr-2" size={16} />
-                )}
-                Fetch Eurostat Data
-              </Button>
-            </div>
+            </a>
           </div>
         )}
 
@@ -270,7 +173,7 @@ function CitiesPage() {
               Filters
             </Button>
             {comparingCities.length > 0 && (
-<a href="/cities/compare">
+              <a href="/cities/compare">
                 <Button>
                   <GitCompare size={16} className="mr-2" />
                   Compare ({comparingCities.length})

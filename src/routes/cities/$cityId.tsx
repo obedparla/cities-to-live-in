@@ -19,6 +19,13 @@ import {
   Shield,
   Home,
   Sun,
+  Bike,
+  Laptop,
+  Train,
+  HeartPulse,
+  Globe,
+  Mountain,
+  Wifi,
 } from 'lucide-react'
 import { CATEGORIES, type CategoryKey } from '../../../convex/scoring'
 
@@ -38,6 +45,14 @@ const CATEGORY_ICONS: Record<CategoryKey, React.ReactNode> = {
   air_quality: <Wind size={20} />,
   cultural: <Building2 size={20} />,
   green_spaces: <TreePine size={20} />,
+  bike_paths: <Bike size={20} />,
+  coworking: <Laptop size={20} />,
+  universities: <GraduationCap size={20} />,
+  train_stations: <Train size={20} />,
+  healthcare: <HeartPulse size={20} />,
+  expat: <Globe size={20} />,
+  nature: <Mountain size={20} />,
+  internet: <Wifi size={20} />,
 }
 
 function formatRawValue(category: CategoryKey, value: number): string {
@@ -63,6 +78,22 @@ function formatRawValue(category: CategoryKey, value: number): string {
       return `${value.toFixed(0)} venues`
     case 'green_spaces':
       return `${value.toFixed(0)} parks`
+    case 'bike_paths':
+      return `${value.toFixed(0)} paths`
+    case 'coworking':
+      return `${value.toFixed(0)} spaces`
+    case 'universities':
+      return `${value.toFixed(0)} unis`
+    case 'train_stations':
+      return `${value.toFixed(0)} stations`
+    case 'healthcare':
+      return `${value.toFixed(0)} beds/100k`
+    case 'expat':
+      return `${(value / 1000000).toFixed(1)}M foreign-born`
+    case 'nature':
+      return `${value.toFixed(0)} natural features`
+    case 'internet':
+      return `${value.toFixed(0)} Mbps`
     default:
       return value.toFixed(2)
   }

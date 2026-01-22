@@ -9,12 +9,18 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as UpdateRouteImport } from './routes/update'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as CitiesIndexRouteImport } from './routes/cities/index'
 import { Route as CitiesCompareRouteImport } from './routes/cities/compare'
 import { Route as CitiesCityIdRouteImport } from './routes/cities/$cityId'
 import { Route as ApiTrpcSplatRouteImport } from './routes/api.trpc.$'
 
+const UpdateRoute = UpdateRouteImport.update({
+  id: '/update',
+  path: '/update',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
@@ -43,6 +49,7 @@ const ApiTrpcSplatRoute = ApiTrpcSplatRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/update': typeof UpdateRoute
   '/cities/$cityId': typeof CitiesCityIdRoute
   '/cities/compare': typeof CitiesCompareRoute
   '/cities/': typeof CitiesIndexRoute
@@ -50,6 +57,7 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/update': typeof UpdateRoute
   '/cities/$cityId': typeof CitiesCityIdRoute
   '/cities/compare': typeof CitiesCompareRoute
   '/cities': typeof CitiesIndexRoute
@@ -58,6 +66,7 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/update': typeof UpdateRoute
   '/cities/$cityId': typeof CitiesCityIdRoute
   '/cities/compare': typeof CitiesCompareRoute
   '/cities/': typeof CitiesIndexRoute
@@ -67,15 +76,23 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/update'
     | '/cities/$cityId'
     | '/cities/compare'
     | '/cities/'
     | '/api/trpc/$'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/cities/$cityId' | '/cities/compare' | '/cities' | '/api/trpc/$'
+  to:
+    | '/'
+    | '/update'
+    | '/cities/$cityId'
+    | '/cities/compare'
+    | '/cities'
+    | '/api/trpc/$'
   id:
     | '__root__'
     | '/'
+    | '/update'
     | '/cities/$cityId'
     | '/cities/compare'
     | '/cities/'
@@ -84,6 +101,7 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  UpdateRoute: typeof UpdateRoute
   CitiesCityIdRoute: typeof CitiesCityIdRoute
   CitiesCompareRoute: typeof CitiesCompareRoute
   CitiesIndexRoute: typeof CitiesIndexRoute
@@ -92,6 +110,13 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/update': {
+      id: '/update'
+      path: '/update'
+      fullPath: '/update'
+      preLoaderRoute: typeof UpdateRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/': {
       id: '/'
       path: '/'
@@ -132,6 +157,7 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  UpdateRoute: UpdateRoute,
   CitiesCityIdRoute: CitiesCityIdRoute,
   CitiesCompareRoute: CitiesCompareRoute,
   CitiesIndexRoute: CitiesIndexRoute,

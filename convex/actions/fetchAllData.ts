@@ -1,5 +1,6 @@
 'use node'
 
+import { v } from 'convex/values'
 import { action } from '../_generated/server'
 import { api, internal } from '../_generated/api'
 
@@ -94,18 +95,26 @@ export const fetchAirQualityForAllCities = action({
 })
 
 export const fetchAmenitiesForAllCities = action({
-  args: {},
-  handler: async (ctx): Promise<{ success: number; failed: number; skipped: number }> => {
-    const cities = await ctx.runQuery(api.cities.list)
+  args: {
+    forceRefresh: v.optional(v.boolean()),
+    batchSize: v.optional(v.number()),
+    offset: v.optional(v.number()),
+  },
+  handler: async (ctx, args): Promise<{ success: number; failed: number; skipped: number; total: number; processed: number }> => {
+    const allCities = await ctx.runQuery(api.cities.list)
     const existingMetrics = await ctx.runQuery(api.cities.getCitiesWithAmenities)
     const citiesWithAmenities = new Set(existingMetrics.map((m: { cityId: string }) => m.cityId))
+
+    const batchSize = args.batchSize ?? 20
+    const offset = args.offset ?? 0
+    const cities = allCities.slice(offset, offset + batchSize)
 
     let success = 0
     let failed = 0
     let skipped = 0
 
     for (const city of cities) {
-      if (citiesWithAmenities.has(city._id)) {
+      if (!args.forceRefresh && citiesWithAmenities.has(city._id)) {
         skipped++
         continue
       }
@@ -133,7 +142,7 @@ export const fetchAmenitiesForAllCities = action({
           culturalCount = parseInt(countEl?.tags?.total || '0', 10)
         }
 
-        await delay(1000)
+        await delay(500)
 
         const parkQuery = `
           [out:json][timeout:25];
@@ -165,14 +174,14 @@ export const fetchAmenitiesForAllCities = action({
         })
         success++
 
-        await delay(1000)
+        await delay(500)
       } catch (e) {
         console.error(`Amenities failed for ${city.name}:`, e)
         failed++
       }
     }
 
-    return { success, failed, skipped }
+    return { success, failed, skipped, total: allCities.length, processed: offset + cities.length }
   },
 })
 
@@ -254,6 +263,443 @@ export const fetchEurostatForAllCities = action({
     }
 
     return { results }
+  },
+})
+
+export const fetchHealthcareForAllCities = action({
+  args: {},
+  handler: async (ctx): Promise<{ success: number; failed: number }> => {
+    const cities = await ctx.runQuery(api.cities.list)
+
+    const url = 'https://ec.europa.eu/eurostat/api/dissemination/statistics/1.0/data/hlth_rs_bds?format=JSON&lang=EN&unit=P_HTHAB&facility=HBEDT'
+
+    try {
+      const response = await fetch(url)
+      if (!response.ok) {
+        console.error('Healthcare API error:', response.status)
+        return { success: 0, failed: cities.length }
+      }
+
+      const data = await response.json()
+      const values = data.value ?? {}
+      const geoIndex = data.dimension?.geo?.category?.index ?? {}
+      const timeIndex = data.dimension?.time?.category?.index ?? {}
+
+      const timeKeys = Object.keys(timeIndex).sort()
+      const geoKeys = Object.keys(geoIndex)
+
+      const healthcareByCountry: Record<string, number> = {}
+
+      for (const geo of geoKeys) {
+        const geoIdx = geoIndex[geo]
+        for (let i = timeKeys.length - 1; i >= 0; i--) {
+          const timeIdx = timeIndex[timeKeys[i]]
+          const valueIdx = geoIdx * timeKeys.length + timeIdx
+          const val = values[String(valueIdx)]
+          if (val !== undefined && val !== null) {
+            healthcareByCountry[geo] = val
+            break
+          }
+        }
+      }
+
+      let success = 0
+      let failed = 0
+
+      for (const city of cities) {
+        const countryCode = city.country.toUpperCase()
+        const healthcareValue = healthcareByCountry[countryCode]
+
+        if (healthcareValue !== undefined) {
+          await ctx.runMutation(internal.mutations.batchUpsertMetrics, {
+            metrics: [{
+              cityId: city._id,
+              category: 'healthcare',
+              metricKey: 'hospital_beds_per_100k',
+              value: healthcareValue,
+              source: 'eurostat',
+            }],
+          })
+          success++
+        } else {
+          failed++
+        }
+      }
+
+      console.log(`Healthcare: ${success} success, ${failed} failed`)
+      return { success, failed }
+    } catch (e) {
+      console.error('Healthcare fetch error:', e)
+      return { success: 0, failed: cities.length }
+    }
+  },
+})
+
+export const fetchExpatDataForAllCities = action({
+  args: {},
+  handler: async (ctx): Promise<{ success: number; failed: number }> => {
+    const cities = await ctx.runQuery(api.cities.list)
+
+    const url = 'https://ec.europa.eu/eurostat/api/dissemination/statistics/1.0/data/migr_pop1ctz?format=JSON&lang=EN&citizen=FOR&age=TOTAL&sex=T'
+
+    try {
+      const response = await fetch(url)
+      if (!response.ok) {
+        console.error('Expat API error:', response.status)
+        return { success: 0, failed: cities.length }
+      }
+
+      const data = await response.json()
+      const values = data.value ?? {}
+      const geoIndex = data.dimension?.geo?.category?.index ?? {}
+      const timeIndex = data.dimension?.time?.category?.index ?? {}
+
+      const timeKeys = Object.keys(timeIndex).sort()
+      const geoKeys = Object.keys(geoIndex)
+
+      const expatByCountry: Record<string, number> = {}
+
+      for (const geo of geoKeys) {
+        const geoIdx = geoIndex[geo]
+        for (let i = timeKeys.length - 1; i >= 0; i--) {
+          const timeIdx = timeIndex[timeKeys[i]]
+          const valueIdx = geoIdx * timeKeys.length + timeIdx
+          const val = values[String(valueIdx)]
+          if (val !== undefined && val !== null) {
+            expatByCountry[geo] = val
+            break
+          }
+        }
+      }
+
+      let success = 0
+      let failed = 0
+
+      for (const city of cities) {
+        const countryCode = city.country.toUpperCase()
+        const expatValue = expatByCountry[countryCode]
+
+        if (expatValue !== undefined) {
+          await ctx.runMutation(internal.mutations.batchUpsertMetrics, {
+            metrics: [{
+              cityId: city._id,
+              category: 'expat',
+              metricKey: 'foreign_born_population',
+              value: expatValue,
+              source: 'eurostat',
+            }],
+          })
+          success++
+        } else {
+          failed++
+        }
+      }
+
+      console.log(`Expat data: ${success} success, ${failed} failed`)
+      return { success, failed }
+    } catch (e) {
+      console.error('Expat fetch error:', e)
+      return { success: 0, failed: cities.length }
+    }
+  },
+})
+
+export const fetchNatureProximityForAllCities = action({
+  args: {
+    forceRefresh: v.optional(v.boolean()),
+    batchSize: v.optional(v.number()),
+    offset: v.optional(v.number()),
+  },
+  handler: async (ctx, args): Promise<{ success: number; failed: number; skipped: number; total: number; processed: number }> => {
+    const allCities = await ctx.runQuery(api.cities.list)
+    const existingMetrics = await ctx.runQuery(api.cities.getCitiesWithNature)
+    const citiesWithNature = new Set(existingMetrics.map((m: { cityId: string }) => m.cityId))
+
+    const batchSize = args.batchSize ?? 15
+    const offset = args.offset ?? 0
+    const cities = allCities.slice(offset, offset + batchSize)
+
+    let success = 0
+    let failed = 0
+    let skipped = 0
+
+    for (const city of cities) {
+      if (!args.forceRefresh && citiesWithNature.has(city._id)) {
+        skipped++
+        continue
+      }
+      try {
+        const radius = 30000
+
+        const beachQuery = `
+          [out:json][timeout:25];
+          (
+            node["natural"="beach"](around:${radius},${city.lat},${city.lon});
+            way["natural"="beach"](around:${radius},${city.lat},${city.lon});
+          );
+          out count;
+        `
+        const beachRes = await fetch('https://overpass-api.de/api/interpreter', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: `data=${encodeURIComponent(beachQuery)}`,
+        })
+
+        let beachCount = 0
+        if (beachRes.ok) {
+          const data = await beachRes.json()
+          const countEl = data.elements?.find((e: { type: string }) => e.type === 'count')
+          beachCount = parseInt(countEl?.tags?.total || '0', 10)
+        }
+
+        await delay(500)
+
+        const forestQuery = `
+          [out:json][timeout:25];
+          (
+            way["landuse"="forest"](around:${radius},${city.lat},${city.lon});
+            relation["landuse"="forest"](around:${radius},${city.lat},${city.lon});
+            way["natural"="wood"](around:${radius},${city.lat},${city.lon});
+          );
+          out count;
+        `
+        const forestRes = await fetch('https://overpass-api.de/api/interpreter', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: `data=${encodeURIComponent(forestQuery)}`,
+        })
+
+        let forestCount = 0
+        if (forestRes.ok) {
+          const data = await forestRes.json()
+          const countEl = data.elements?.find((e: { type: string }) => e.type === 'count')
+          forestCount = parseInt(countEl?.tags?.total || '0', 10)
+        }
+
+        await delay(500)
+
+        const mountainQuery = `
+          [out:json][timeout:25];
+          (
+            node["natural"="peak"](around:${radius},${city.lat},${city.lon});
+          );
+          out count;
+        `
+        const mountainRes = await fetch('https://overpass-api.de/api/interpreter', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: `data=${encodeURIComponent(mountainQuery)}`,
+        })
+
+        let mountainCount = 0
+        if (mountainRes.ok) {
+          const data = await mountainRes.json()
+          const countEl = data.elements?.find((e: { type: string }) => e.type === 'count')
+          mountainCount = parseInt(countEl?.tags?.total || '0', 10)
+        }
+
+        const totalNature = beachCount + forestCount + mountainCount
+
+        await ctx.runMutation(internal.mutations.batchUpsertMetrics, {
+          metrics: [{
+            cityId: city._id,
+            category: 'nature',
+            metricKey: 'nature_score',
+            value: totalNature,
+            source: 'osm',
+          }],
+        })
+        success++
+
+        await delay(500)
+      } catch (e) {
+        console.error(`Nature failed for ${city.name}:`, e)
+        failed++
+      }
+    }
+
+    return { success, failed, skipped, total: allCities.length, processed: offset + cities.length }
+  },
+})
+
+const INTERNET_SPEEDS: Record<string, number> = {
+  DK: 226, NL: 206, ES: 202, FR: 199, SE: 188, CH: 185,
+  HU: 184, RO: 180, BE: 166, PT: 157, LU: 155, AT: 153,
+  PL: 150, DE: 135, NO: 133, IT: 130, FI: 129, IE: 123,
+  CZ: 117, SK: 109, SI: 103, LT: 100, EE: 97, LV: 95,
+  HR: 90, BG: 85, GR: 72, CY: 65, MT: 60, GB: 145, UK: 145,
+}
+
+export const fetchInternetSpeedForAllCities = action({
+  args: {},
+  handler: async (ctx): Promise<{ success: number; failed: number }> => {
+    const cities = await ctx.runQuery(api.cities.list)
+
+    let success = 0
+    let failed = 0
+
+    for (const city of cities) {
+      const countryCode = city.country.toUpperCase()
+      const speed = INTERNET_SPEEDS[countryCode]
+
+      if (speed !== undefined) {
+        await ctx.runMutation(internal.mutations.batchUpsertMetrics, {
+          metrics: [{
+            cityId: city._id,
+            category: 'internet',
+            metricKey: 'download_speed_mbps',
+            value: speed,
+            source: 'ookla-2024',
+          }],
+        })
+        success++
+      } else {
+        failed++
+      }
+    }
+
+    console.log(`Internet speed: ${success} success, ${failed} failed`)
+    return { success, failed }
+  },
+})
+
+export const fetchInfrastructureForAllCities = action({
+  args: {
+    forceRefresh: v.optional(v.boolean()),
+    batchSize: v.optional(v.number()),
+    offset: v.optional(v.number()),
+  },
+  handler: async (ctx, args): Promise<{ success: number; failed: number; skipped: number; total: number; processed: number }> => {
+    const allCities = await ctx.runQuery(api.cities.list)
+    const existingMetrics = await ctx.runQuery(api.cities.getCitiesWithInfrastructure)
+    const citiesWithInfra = new Set(existingMetrics.map((m: { cityId: string }) => m.cityId))
+
+    const batchSize = args.batchSize ?? 10
+    const offset = args.offset ?? 0
+    const cities = allCities.slice(offset, offset + batchSize)
+
+    let success = 0
+    let failed = 0
+    let skipped = 0
+
+    for (const city of cities) {
+      if (!args.forceRefresh && citiesWithInfra.has(city._id)) {
+        skipped++
+        continue
+      }
+      try {
+        const radius = 10000
+
+        const bikeQuery = `
+          [out:json][timeout:25];
+          (
+            way["highway"="cycleway"](around:${radius},${city.lat},${city.lon});
+            way["bicycle"="designated"](around:${radius},${city.lat},${city.lon});
+          );
+          out count;
+        `
+        const bikeRes = await fetch('https://overpass-api.de/api/interpreter', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: `data=${encodeURIComponent(bikeQuery)}`,
+        })
+
+        let bikeCount = 0
+        if (bikeRes.ok) {
+          const data = await bikeRes.json()
+          const countEl = data.elements?.find((e: { type: string }) => e.type === 'count')
+          bikeCount = parseInt(countEl?.tags?.total || '0', 10)
+        }
+
+        await delay(500)
+
+        const coworkingQuery = `
+          [out:json][timeout:25];
+          (
+            node["amenity"="coworking_space"](around:${radius},${city.lat},${city.lon});
+            way["amenity"="coworking_space"](around:${radius},${city.lat},${city.lon});
+          );
+          out count;
+        `
+        const coworkingRes = await fetch('https://overpass-api.de/api/interpreter', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: `data=${encodeURIComponent(coworkingQuery)}`,
+        })
+
+        let coworkingCount = 0
+        if (coworkingRes.ok) {
+          const data = await coworkingRes.json()
+          const countEl = data.elements?.find((e: { type: string }) => e.type === 'count')
+          coworkingCount = parseInt(countEl?.tags?.total || '0', 10)
+        }
+
+        await delay(500)
+
+        const uniQuery = `
+          [out:json][timeout:25];
+          (
+            node["amenity"="university"](around:${radius},${city.lat},${city.lon});
+            way["amenity"="university"](around:${radius},${city.lat},${city.lon});
+            relation["amenity"="university"](around:${radius},${city.lat},${city.lon});
+          );
+          out count;
+        `
+        const uniRes = await fetch('https://overpass-api.de/api/interpreter', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: `data=${encodeURIComponent(uniQuery)}`,
+        })
+
+        let uniCount = 0
+        if (uniRes.ok) {
+          const data = await uniRes.json()
+          const countEl = data.elements?.find((e: { type: string }) => e.type === 'count')
+          uniCount = parseInt(countEl?.tags?.total || '0', 10)
+        }
+
+        await delay(500)
+
+        const trainQuery = `
+          [out:json][timeout:25];
+          (
+            node["railway"="station"](around:${radius},${city.lat},${city.lon});
+            node["railway"="halt"](around:${radius},${city.lat},${city.lon});
+          );
+          out count;
+        `
+        const trainRes = await fetch('https://overpass-api.de/api/interpreter', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: `data=${encodeURIComponent(trainQuery)}`,
+        })
+
+        let trainCount = 0
+        if (trainRes.ok) {
+          const data = await trainRes.json()
+          const countEl = data.elements?.find((e: { type: string }) => e.type === 'count')
+          trainCount = parseInt(countEl?.tags?.total || '0', 10)
+        }
+
+        await ctx.runMutation(internal.mutations.batchUpsertInfrastructureMetrics, {
+          cityId: city._id,
+          metrics: [
+            { metricKey: 'bike_paths', value: bikeCount },
+            { metricKey: 'coworking_spaces', value: coworkingCount },
+            { metricKey: 'universities', value: uniCount },
+            { metricKey: 'train_stations', value: trainCount },
+          ],
+        })
+        success++
+
+        await delay(500)
+      } catch (e) {
+        console.error(`Infrastructure failed for ${city.name}:`, e)
+        failed++
+      }
+    }
+
+    return { success, failed, skipped, total: allCities.length, processed: offset + cities.length }
   },
 })
 

@@ -152,6 +152,30 @@ export const getCitiesWithAmenities = query({
   },
 })
 
+export const getCitiesWithInfrastructure = query({
+  args: {},
+  handler: async (ctx) => {
+    const metrics = await ctx.db
+      .query('cityMetrics')
+      .filter((q) => q.eq(q.field('category'), 'infrastructure'))
+      .collect()
+    const cityIds = [...new Set(metrics.map((m) => m.cityId.toString()))]
+    return cityIds.map((id) => ({ cityId: id }))
+  },
+})
+
+export const getCitiesWithNature = query({
+  args: {},
+  handler: async (ctx) => {
+    const metrics = await ctx.db
+      .query('cityMetrics')
+      .filter((q) => q.eq(q.field('category'), 'nature'))
+      .collect()
+    const cityIds = [...new Set(metrics.map((m) => m.cityId.toString()))]
+    return cityIds.map((id) => ({ cityId: id }))
+  },
+})
+
 export const upsertMetric = mutation({
   args: {
     cityId: v.id('cities'),

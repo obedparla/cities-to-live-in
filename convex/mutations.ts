@@ -200,3 +200,42 @@ export const batchUpsertAmenityMetrics = internalMutation({
     }
   },
 })
+
+export const batchUpsertInfrastructureMetrics = internalMutation({
+  args: {
+    cityId: v.id('cities'),
+    metrics: v.array(
+      v.object({
+        metricKey: v.string(),
+        value: v.number(),
+      })
+    ),
+  },
+  handler: async (ctx, args) => {
+    for (const m of args.metrics) {
+      const existing = await ctx.db
+        .query('cityMetrics')
+        .withIndex('by_city_category', (q) =>
+          q.eq('cityId', args.cityId).eq('category', 'infrastructure')
+        )
+        .filter((q) => q.eq(q.field('metricKey'), m.metricKey))
+        .first()
+
+      if (existing) {
+        await ctx.db.patch(existing._id, {
+          value: m.value,
+          fetchedAt: Date.now(),
+        })
+      } else {
+        await ctx.db.insert('cityMetrics', {
+          cityId: args.cityId,
+          category: 'infrastructure',
+          metricKey: m.metricKey,
+          value: m.value,
+          source: 'osm',
+          fetchedAt: Date.now(),
+        })
+      }
+    }
+  },
+})

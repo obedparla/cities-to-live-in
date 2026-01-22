@@ -14,6 +14,14 @@ export const CATEGORIES = {
   air_quality: { label: 'Air Quality', higherBetter: false, source: 'open-meteo' },
   cultural: { label: 'Cultural Amenities', higherBetter: true, source: 'osm' },
   green_spaces: { label: 'Green Spaces', higherBetter: true, source: 'osm' },
+  bike_paths: { label: 'Bike Infrastructure', higherBetter: true, source: 'osm' },
+  coworking: { label: 'Coworking Spaces', higherBetter: true, source: 'osm' },
+  universities: { label: 'Universities', higherBetter: true, source: 'osm' },
+  train_stations: { label: 'Rail Connectivity', higherBetter: true, source: 'osm' },
+  healthcare: { label: 'Healthcare Quality', higherBetter: true, source: 'eurostat' },
+  expat: { label: 'Expat Community', higherBetter: true, source: 'eurostat' },
+  nature: { label: 'Nature Proximity', higherBetter: true, source: 'osm' },
+  internet: { label: 'Internet Speed', higherBetter: true, source: 'ookla' },
 } as const
 
 export type CategoryKey = keyof typeof CATEGORIES
@@ -30,6 +38,14 @@ const METRIC_MAPPING: Record<CategoryKey, { category: string; metricKey: string 
   air_quality: { category: 'air_quality', metricKey: 'avg_aqi' },
   cultural: { category: 'amenities', metricKey: 'cultural_count' },
   green_spaces: { category: 'amenities', metricKey: 'park_count' },
+  bike_paths: { category: 'infrastructure', metricKey: 'bike_paths' },
+  coworking: { category: 'infrastructure', metricKey: 'coworking_spaces' },
+  universities: { category: 'infrastructure', metricKey: 'universities' },
+  train_stations: { category: 'infrastructure', metricKey: 'train_stations' },
+  healthcare: { category: 'healthcare', metricKey: 'hospital_beds_per_100k' },
+  expat: { category: 'expat', metricKey: 'foreign_born_population' },
+  nature: { category: 'nature', metricKey: 'nature_score' },
+  internet: { category: 'internet', metricKey: 'download_speed_mbps' },
 }
 
 interface UserWeights {
