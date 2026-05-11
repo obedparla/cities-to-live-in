@@ -9,6 +9,7 @@ const WIKIPEDIA_API = 'https://en.wikipedia.org/api/rest_v1/page/summary'
 interface WikipediaSummary {
   title: string
   extract: string
+  type?: string
   thumbnail?: {
     source: string
     width: number
@@ -42,32 +43,59 @@ export const fetchCityDescription = action({
   },
 })
 
+async function fetchSummary(cityName: string): Promise<WikipediaSummary | null> {
+  const url = `${WIKIPEDIA_API}/${encodeURIComponent(cityName)}`
+  const response = await fetch(url, {
+    headers: { 'User-Agent': 'tolivein-bot/0.1 (https://github.com/obedparla)' },
+  })
+  if (!response.ok) return null
+  return (await response.json()) as WikipediaSummary
+}
+
 export const fetchDescriptionsForAllCities = action({
-  args: { countries: v.optional(v.array(v.string())) },
-  handler: async (ctx, args): Promise<{ success: number; failed: number }> => {
+  args: {
+    countries: v.optional(v.array(v.string())),
+    forceRefresh: v.optional(v.boolean()),
+  },
+  handler: async (
+    ctx,
+    args
+  ): Promise<{ success: number; failed: number; skipped: number; failures: string[] }> => {
     const allCities = await ctx.runQuery(api.cities.list)
     const cities = args.countries?.length
       ? allCities.filter((c) =>
           args.countries!.some((cc) => cc.toUpperCase() === c.country.toUpperCase())
         )
       : allCities
+
     let success = 0
     let failed = 0
+    let skipped = 0
+    const failures: string[] = []
 
     for (const city of cities) {
+      if (!args.forceRefresh && city.description) {
+        skipped++
+        continue
+      }
       try {
-        const cityName = city.name.replace(/\s*\(.*\)\s*$/, '').trim()
-        const url = `${WIKIPEDIA_API}/${encodeURIComponent(cityName)}`
+        const candidates = new Set<string>()
+        const baseName = city.name.replace(/\s*\(.*\)\s*$/, '').trim()
+        candidates.add(baseName)
+        candidates.add(`${baseName}, ${city.country}`)
+        candidates.add(`${baseName} (city)`)
 
-        const response = await fetch(url)
-        if (!response.ok) {
-          failed++
-          continue
+        let summary: WikipediaSummary | null = null
+        for (const candidate of candidates) {
+          const data = await fetchSummary(candidate)
+          if (data?.extract && data.type !== 'disambiguation') {
+            summary = data
+            break
+          }
+          await delay(150)
         }
 
-        const data: WikipediaSummary = await response.json()
-
-        if (data.extract) {
+        if (summary && summary.extract) {
           await ctx.runMutation(internal.mutations.batchUpsertMetrics, {
             metrics: [{
               cityId: city._id,
@@ -80,22 +108,26 @@ export const fetchDescriptionsForAllCities = action({
 
           await ctx.runMutation(api.cities.updateDescription, {
             id: city._id,
-            description: data.extract,
-            thumbnail: data.thumbnail?.source,
-            wikiUrl: data.content_urls?.desktop?.page,
+            description: summary.extract,
+            thumbnail: summary.thumbnail?.source,
+            wikiUrl: summary.content_urls?.desktop?.page,
           })
           success++
         } else {
           failed++
+          failures.push(`${city.name} (${city.country})`)
         }
 
-        await delay(100)
-      } catch {
+        await delay(200)
+      } catch (e) {
         failed++
+        failures.push(
+          `${city.name} (${city.country}): ${e instanceof Error ? e.message : 'error'}`
+        )
       }
     }
 
-    return { success, failed }
+    return { success, failed, skipped, failures }
   },
 })
 

@@ -356,7 +356,7 @@ export const fetchExpatDataForAllCities = action({
     const allCities = await ctx.runQuery(api.cities.list)
     const cities = filterByCountries(allCities, args.countries)
 
-    const url = 'https://ec.europa.eu/eurostat/api/dissemination/statistics/1.0/data/migr_pop1ctz?format=JSON&lang=EN&citizen=FOR&age=TOTAL&sex=T'
+    const url = 'https://ec.europa.eu/eurostat/api/dissemination/statistics/1.0/data/tps00178?format=JSON&lang=EN&c_birth=FOR&age=TOTAL&sex=T&unit=NR'
 
     try {
       const response = await fetch(url)
