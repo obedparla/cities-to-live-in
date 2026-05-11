@@ -7,10 +7,20 @@ import { api, internal } from '../_generated/api'
 const WEATHER_BASE = 'https://api.open-meteo.com/v1/forecast'
 const AIR_QUALITY_BASE = 'https://air-quality-api.open-meteo.com/v1/air-quality'
 
+function filterByCountries<T extends { country: string }>(
+  cities: T[],
+  countries: string[] | undefined
+): T[] {
+  if (!countries || countries.length === 0) return cities
+  const set = new Set(countries.map((c) => c.toUpperCase()))
+  return cities.filter((c) => set.has(c.country.toUpperCase()))
+}
+
 export const fetchWeatherForAllCities = action({
-  args: {},
-  handler: async (ctx): Promise<{ success: number; failed: number }> => {
-    const cities = await ctx.runQuery(api.cities.list)
+  args: { countries: v.optional(v.array(v.string())) },
+  handler: async (ctx, args): Promise<{ success: number; failed: number }> => {
+    const allCities = await ctx.runQuery(api.cities.list)
+    const cities = filterByCountries(allCities, args.countries)
     let success = 0
     let failed = 0
 
@@ -53,9 +63,10 @@ export const fetchWeatherForAllCities = action({
 })
 
 export const fetchAirQualityForAllCities = action({
-  args: {},
-  handler: async (ctx): Promise<{ success: number; failed: number }> => {
-    const cities = await ctx.runQuery(api.cities.list)
+  args: { countries: v.optional(v.array(v.string())) },
+  handler: async (ctx, args): Promise<{ success: number; failed: number }> => {
+    const allCities = await ctx.runQuery(api.cities.list)
+    const cities = filterByCountries(allCities, args.countries)
     let success = 0
     let failed = 0
 
@@ -99,9 +110,11 @@ export const fetchAmenitiesForAllCities = action({
     forceRefresh: v.optional(v.boolean()),
     batchSize: v.optional(v.number()),
     offset: v.optional(v.number()),
+    countries: v.optional(v.array(v.string())),
   },
   handler: async (ctx, args): Promise<{ success: number; failed: number; skipped: number; total: number; processed: number }> => {
-    const allCities = await ctx.runQuery(api.cities.list)
+    const rawCities = await ctx.runQuery(api.cities.list)
+    const allCities = filterByCountries(rawCities, args.countries)
     const existingMetrics = await ctx.runQuery(api.cities.getCitiesWithAmenities)
     const citiesWithAmenities = new Set(existingMetrics.map((m: { cityId: string }) => m.cityId))
 
@@ -186,9 +199,10 @@ export const fetchAmenitiesForAllCities = action({
 })
 
 export const fetchEurostatForAllCities = action({
-  args: {},
-  handler: async (ctx): Promise<{ results: Record<string, { success: number; failed: number }> }> => {
-    const cities = await ctx.runQuery(api.cities.list)
+  args: { countries: v.optional(v.array(v.string())) },
+  handler: async (ctx, args): Promise<{ results: Record<string, { success: number; failed: number }> }> => {
+    const allCities = await ctx.runQuery(api.cities.list)
+    const cities = filterByCountries(allCities, args.countries)
     const citiesWithUrau = cities.filter((c) => c.urauCode)
 
     if (citiesWithUrau.length === 0) {
@@ -267,9 +281,10 @@ export const fetchEurostatForAllCities = action({
 })
 
 export const fetchHealthcareForAllCities = action({
-  args: {},
-  handler: async (ctx): Promise<{ success: number; failed: number }> => {
-    const cities = await ctx.runQuery(api.cities.list)
+  args: { countries: v.optional(v.array(v.string())) },
+  handler: async (ctx, args): Promise<{ success: number; failed: number }> => {
+    const allCities = await ctx.runQuery(api.cities.list)
+    const cities = filterByCountries(allCities, args.countries)
 
     const url = 'https://ec.europa.eu/eurostat/api/dissemination/statistics/1.0/data/hlth_rs_bds?format=JSON&lang=EN&unit=P_HTHAB&facility=HBEDT'
 
@@ -336,9 +351,10 @@ export const fetchHealthcareForAllCities = action({
 })
 
 export const fetchExpatDataForAllCities = action({
-  args: {},
-  handler: async (ctx): Promise<{ success: number; failed: number }> => {
-    const cities = await ctx.runQuery(api.cities.list)
+  args: { countries: v.optional(v.array(v.string())) },
+  handler: async (ctx, args): Promise<{ success: number; failed: number }> => {
+    const allCities = await ctx.runQuery(api.cities.list)
+    const cities = filterByCountries(allCities, args.countries)
 
     const url = 'https://ec.europa.eu/eurostat/api/dissemination/statistics/1.0/data/migr_pop1ctz?format=JSON&lang=EN&citizen=FOR&age=TOTAL&sex=T'
 
@@ -409,9 +425,11 @@ export const fetchNatureProximityForAllCities = action({
     forceRefresh: v.optional(v.boolean()),
     batchSize: v.optional(v.number()),
     offset: v.optional(v.number()),
+    countries: v.optional(v.array(v.string())),
   },
   handler: async (ctx, args): Promise<{ success: number; failed: number; skipped: number; total: number; processed: number }> => {
-    const allCities = await ctx.runQuery(api.cities.list)
+    const rawCities = await ctx.runQuery(api.cities.list)
+    const allCities = filterByCountries(rawCities, args.countries)
     const existingMetrics = await ctx.runQuery(api.cities.getCitiesWithNature)
     const citiesWithNature = new Set(existingMetrics.map((m: { cityId: string }) => m.cityId))
 
@@ -531,9 +549,10 @@ const INTERNET_SPEEDS: Record<string, number> = {
 }
 
 export const fetchInternetSpeedForAllCities = action({
-  args: {},
-  handler: async (ctx): Promise<{ success: number; failed: number }> => {
-    const cities = await ctx.runQuery(api.cities.list)
+  args: { countries: v.optional(v.array(v.string())) },
+  handler: async (ctx, args): Promise<{ success: number; failed: number }> => {
+    const allCities = await ctx.runQuery(api.cities.list)
+    const cities = filterByCountries(allCities, args.countries)
 
     let success = 0
     let failed = 0
@@ -568,9 +587,11 @@ export const fetchInfrastructureForAllCities = action({
     forceRefresh: v.optional(v.boolean()),
     batchSize: v.optional(v.number()),
     offset: v.optional(v.number()),
+    countries: v.optional(v.array(v.string())),
   },
   handler: async (ctx, args): Promise<{ success: number; failed: number; skipped: number; total: number; processed: number }> => {
-    const allCities = await ctx.runQuery(api.cities.list)
+    const rawCities = await ctx.runQuery(api.cities.list)
+    const allCities = filterByCountries(rawCities, args.countries)
     const existingMetrics = await ctx.runQuery(api.cities.getCitiesWithInfrastructure)
     const citiesWithInfra = new Set(existingMetrics.map((m: { cityId: string }) => m.cityId))
 

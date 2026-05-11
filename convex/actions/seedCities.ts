@@ -88,3 +88,65 @@ export const seedCities = action({
     return result
   },
 })
+
+export const seedCitiesForCountries = action({
+  args: {
+    countries: v.array(v.string()),
+    maxPerCountry: v.optional(v.number()),
+  },
+  handler: async (
+    ctx,
+    args
+  ): Promise<{ inserted: number; skipped: number; total: number }> => {
+    const targetCountries = new Set(
+      args.countries.map((c) => c.toUpperCase())
+    )
+
+    const response = await fetch(GISCO_URL)
+    if (!response.ok) {
+      throw new Error(`Failed to fetch GISCO data: ${response.status}`)
+    }
+
+    const data: GiscoGeoJSON = await response.json()
+    const matchingCities = data.features.filter((f) =>
+      targetCountries.has(f.properties.CNTR_CODE.toUpperCase())
+    )
+
+    const byCountry = new Map<string, GiscoFeature[]>()
+    for (const feature of matchingCities) {
+      const code = feature.properties.CNTR_CODE.toUpperCase()
+      const list = byCountry.get(code) ?? []
+      list.push(feature)
+      byCountry.set(code, list)
+    }
+
+    const selected: GiscoFeature[] = []
+    for (const [, features] of byCountry) {
+      const sorted = [...features].sort((a, b) => {
+        const aCap = a.properties.CITY_CPTL === 'Y' ? 1 : 0
+        const bCap = b.properties.CITY_CPTL === 'Y' ? 1 : 0
+        if (aCap !== bCap) return bCap - aCap
+        return (b.properties.POP_2021 ?? 0) - (a.properties.POP_2021 ?? 0)
+      })
+      const limit = args.maxPerCountry ?? sorted.length
+      selected.push(...sorted.slice(0, limit))
+    }
+
+    const citiesToInsert = selected.map((f) => ({
+      urauCode: f.properties.URAU_CODE,
+      name: f.properties.URAU_NAME,
+      country: f.properties.CNTR_CODE,
+      lon: f.geometry.coordinates[0],
+      lat: f.geometry.coordinates[1],
+      areaSqKm: (f.properties.AREA_SQM ?? 0) / 1_000_000,
+      isCapital: f.properties.CITY_CPTL === 'Y',
+      population: f.properties.POP_2021,
+    }))
+
+    const result = await ctx.runMutation(internal.mutations.batchInsertCities, {
+      cities: citiesToInsert,
+    })
+
+    return { ...result, total: citiesToInsert.length }
+  },
+})

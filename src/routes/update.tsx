@@ -1,9 +1,13 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { useAction } from 'convex/react'
-import { useState } from 'react'
+import { useAction, useQuery } from 'convex/react'
+import { useMemo, useState } from 'react'
 import { api } from '../../convex/_generated/api'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
+import {
+  CountryFilter,
+  SelectedCountryBadges,
+} from '@/components/cities/CountryFilter'
 import {
   Loader2,
   CloudSun,
@@ -21,6 +25,7 @@ import {
   ArrowLeft,
   RefreshCw,
   BookOpen,
+  MapPinPlus,
 } from 'lucide-react'
 
 export const Route = createFileRoute('/update' as never)({
@@ -49,6 +54,22 @@ function UpdatePage() {
   const [results, setResults] = useState<Record<string, string>>({})
   const [isRunning, setIsRunning] = useState(false)
   const [forceRefresh, setForceRefresh] = useState(false)
+  const [selectedCountries, setSelectedCountries] = useState<string[]>([])
+  const [isSeeding, setIsSeeding] = useState(false)
+  const [seedResult, setSeedResult] = useState<string | null>(null)
+
+  const allCities = useQuery(api.cities.list)
+  const countriesWithCounts = useMemo(() => {
+    if (!allCities) return []
+    const counts = new Map<string, number>()
+    for (const c of allCities) {
+      counts.set(c.country, (counts.get(c.country) ?? 0) + 1)
+    }
+    return Array.from(counts.entries()).map(([code, cityCount]) => ({
+      code,
+      cityCount,
+    }))
+  }, [allCities])
 
   const fetchWeather = useAction(api.actions.fetchAllData.fetchWeatherForAllCities)
   const fetchAirQuality = useAction(api.actions.fetchAllData.fetchAirQualityForAllCities)
@@ -60,6 +81,13 @@ function UpdatePage() {
   const fetchNature = useAction(api.actions.fetchAllData.fetchNatureProximityForAllCities)
   const fetchInternet = useAction(api.actions.fetchAllData.fetchInternetSpeedForAllCities)
   const fetchWikipedia = useAction(api.actions.wikipedia.fetchDescriptionsForAllCities)
+  const seedCitiesForCountries = useAction(
+    api.actions.seedCities.seedCitiesForCountries
+  )
+
+  const filterArgs = selectedCountries.length > 0
+    ? { countries: selectedCountries }
+    : {}
 
   const apis: ApiConfig[] = [
     { key: 'weather', label: 'Weather Data', icon: <CloudSun size={20} /> },
@@ -89,7 +117,11 @@ function UpdatePage() {
 
     while (true) {
       onProgress(`Batch ${Math.floor(offset / 10) + 1}...`)
-      const result = await fetchFn({ forceRefresh: useForceRefresh, offset }) as BatchResult
+      const result = await fetchFn({
+        forceRefresh: useForceRefresh,
+        offset,
+        ...filterArgs,
+      }) as BatchResult
       totalSuccess += result.success
       totalFailed += result.failed
 
@@ -112,17 +144,35 @@ function UpdatePage() {
     }
 
     switch (key) {
-      case 'weather': return fetchWeather()
-      case 'air': return fetchAirQuality()
-      case 'amenities': return fetchAmenities({ forceRefresh: useForceRefresh })
-      case 'eurostat': return fetchEurostat()
-      case 'infrastructure': return fetchInfrastructure({ forceRefresh: useForceRefresh })
-      case 'healthcare': return fetchHealthcare()
-      case 'expat': return fetchExpat()
-      case 'nature': return fetchNature({ forceRefresh: useForceRefresh })
-      case 'internet': return fetchInternet()
-      case 'wikipedia': return fetchWikipedia()
+      case 'weather': return fetchWeather(filterArgs)
+      case 'air': return fetchAirQuality(filterArgs)
+      case 'amenities': return fetchAmenities({ forceRefresh: useForceRefresh, ...filterArgs })
+      case 'eurostat': return fetchEurostat(filterArgs)
+      case 'infrastructure': return fetchInfrastructure({ forceRefresh: useForceRefresh, ...filterArgs })
+      case 'healthcare': return fetchHealthcare(filterArgs)
+      case 'expat': return fetchExpat(filterArgs)
+      case 'nature': return fetchNature({ forceRefresh: useForceRefresh, ...filterArgs })
+      case 'internet': return fetchInternet(filterArgs)
+      case 'wikipedia': return fetchWikipedia(filterArgs)
       default: throw new Error(`Unknown API: ${key}`)
+    }
+  }
+
+  const handleSeedCountries = async () => {
+    if (selectedCountries.length === 0) return
+    setIsSeeding(true)
+    setSeedResult(null)
+    try {
+      const result = await seedCitiesForCountries({
+        countries: selectedCountries,
+      })
+      setSeedResult(
+        `Inserted ${result.inserted}, skipped ${result.skipped} (${result.total} total from GISCO)`
+      )
+    } catch (e) {
+      setSeedResult(e instanceof Error ? e.message : 'Seed failed')
+    } finally {
+      setIsSeeding(false)
     }
   }
 
@@ -217,6 +267,62 @@ function UpdatePage() {
             </p>
           </CardHeader>
           <CardContent>
+            <div className="mb-4 p-3 bg-gray-50 border border-gray-200 rounded-lg space-y-3">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-sm font-medium text-gray-700">
+                  Limit to countries:
+                </span>
+                <CountryFilter
+                  countries={countriesWithCounts}
+                  selected={selectedCountries}
+                  onChange={setSelectedCountries}
+                />
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() =>
+                    setSelectedCountries(['AT', 'IT', 'BE'])
+                  }
+                  disabled={isRunning || isSeeding}
+                >
+                  AT/IT/BE
+                </Button>
+              </div>
+              {selectedCountries.length > 0 && (
+                <>
+                  <SelectedCountryBadges
+                    selected={selectedCountries}
+                    onRemove={(code) =>
+                      setSelectedCountries(
+                        selectedCountries.filter((c) => c !== code)
+                      )
+                    }
+                    onClear={() => setSelectedCountries([])}
+                  />
+                  <div className="flex items-center gap-2 pt-2 border-t">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={handleSeedCountries}
+                      disabled={isSeeding || isRunning}
+                    >
+                      {isSeeding ? (
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      ) : (
+                        <MapPinPlus className="mr-2 h-4 w-4" />
+                      )}
+                      Seed all GISCO cities for selected countries
+                    </Button>
+                    {seedResult && (
+                      <span className="text-xs text-gray-600">
+                        {seedResult}
+                      </span>
+                    )}
+                  </div>
+                </>
+              )}
+            </div>
+
             <div className="flex items-center gap-2 mb-4">
               <input
                 type="checkbox"
@@ -245,6 +351,11 @@ function UpdatePage() {
                 <>
                   <Play className="mr-2 h-5 w-5" />
                   Fetch All APIs
+                  {selectedCountries.length > 0 && (
+                    <span className="ml-1 text-xs opacity-80">
+                      ({selectedCountries.length} countries)
+                    </span>
+                  )}
                 </>
               )}
             </Button>

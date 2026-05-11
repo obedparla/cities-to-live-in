@@ -43,9 +43,14 @@ export const fetchCityDescription = action({
 })
 
 export const fetchDescriptionsForAllCities = action({
-  args: {},
-  handler: async (ctx): Promise<{ success: number; failed: number }> => {
-    const cities = await ctx.runQuery(api.cities.list)
+  args: { countries: v.optional(v.array(v.string())) },
+  handler: async (ctx, args): Promise<{ success: number; failed: number }> => {
+    const allCities = await ctx.runQuery(api.cities.list)
+    const cities = args.countries?.length
+      ? allCities.filter((c) =>
+          args.countries!.some((cc) => cc.toUpperCase() === c.country.toUpperCase())
+        )
+      : allCities
     let success = 0
     let failed = 0
 
