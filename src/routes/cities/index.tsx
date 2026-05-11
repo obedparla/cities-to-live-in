@@ -1,11 +1,15 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { useQuery, useAction } from 'convex/react'
-import { useState, useEffect } from 'react'
+import { useMemo, useState, useEffect } from 'react'
 import { api } from '../../../convex/_generated/api'
 import { CityCard } from '@/components/cities/CityCard'
 import { CityGridSkeleton } from '@/components/cities/CityCardSkeleton'
 import { SearchAutocomplete } from '@/components/cities/SearchAutocomplete'
 import { FilterPanel } from '@/components/cities/FilterPanel'
+import {
+  CountryFilter,
+  SelectedCountryBadges,
+} from '@/components/cities/CountryFilter'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import {
@@ -17,10 +21,13 @@ import {
 } from 'lucide-react'
 import type { Id } from '../../../convex/_generated/dataModel'
 import type { CityScore } from '../../../convex/scoring'
+import { useDebouncedValue } from '@/lib/useDebouncedValue'
 
 export const Route = createFileRoute('/cities/' as never)({
   component: CitiesPage,
 })
+
+const WEIGHTS_DEBOUNCE_MS = 3000
 
 function useLocalStorage<T>(key: string, initialValue: T) {
   const [value, setValue] = useState<T>(() => {
@@ -55,21 +62,49 @@ function CitiesPage() {
     'comparing-cities',
     []
   )
+  const [selectedCountries, setSelectedCountries] = useLocalStorage<string[]>(
+    'selected-countries',
+    []
+  )
   const [searchQuery, setSearchQuery] = useState('')
   const [showFilters, setShowFilters] = useState(false)
 
-  const cities = useQuery(api.scoring.getCitiesWithScores, {
-    weights,
+  const debouncedWeights = useDebouncedValue(weights, WEIGHTS_DEBOUNCE_MS)
+  const debouncedPreferredTemp = useDebouncedValue(
     preferredTemp,
+    WEIGHTS_DEBOUNCE_MS
+  )
+  const isPendingWeightUpdate =
+    debouncedWeights !== weights || debouncedPreferredTemp !== preferredTemp
+
+  const cities = useQuery(api.scoring.getCitiesWithScores, {
+    weights: debouncedWeights,
+    preferredTemp: debouncedPreferredTemp,
   })
 
   const seedCities = useAction(api.actions.seedCities.seedCities)
 
-  const filteredCities = cities?.filter(
-    (c: CityScore) =>
+  const countriesWithCounts = useMemo(() => {
+    if (!cities) return []
+    const counts = new Map<string, number>()
+    for (const c of cities) {
+      counts.set(c.city.country, (counts.get(c.city.country) ?? 0) + 1)
+    }
+    return Array.from(counts.entries()).map(([code, cityCount]) => ({
+      code,
+      cityCount,
+    }))
+  }, [cities])
+
+  const filteredCities = cities?.filter((c: CityScore) => {
+    const matchesSearch =
       c.city.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       c.city.country.toLowerCase().includes(searchQuery.toLowerCase())
-  )
+    const matchesCountry =
+      selectedCountries.length === 0 ||
+      selectedCountries.includes(c.city.country)
+    return matchesSearch && matchesCountry
+  })
 
   const toggleCompare = (cityId: Id<'cities'>) => {
     const idStr = cityId.toString()
@@ -151,7 +186,7 @@ function CitiesPage() {
           </div>
         )}
 
-        <div className="flex flex-col md:flex-row gap-4 mb-6">
+        <div className="flex flex-col md:flex-row gap-4 mb-4">
           <div className="flex-1">
             <SearchAutocomplete
               cities={cities.map((c: CityScore) => ({
@@ -164,6 +199,11 @@ function CitiesPage() {
             />
           </div>
           <div className="flex gap-2">
+            <CountryFilter
+              countries={countriesWithCounts}
+              selected={selectedCountries}
+              onChange={setSelectedCountries}
+            />
             <Button
               variant="outline"
               onClick={() => setShowFilters(!showFilters)}
@@ -182,6 +222,20 @@ function CitiesPage() {
             )}
           </div>
         </div>
+
+        {selectedCountries.length > 0 && (
+          <div className="mb-4">
+            <SelectedCountryBadges
+              selected={selectedCountries}
+              onRemove={(code) =>
+                setSelectedCountries(
+                  selectedCountries.filter((c) => c !== code)
+                )
+              }
+              onClear={() => setSelectedCountries([])}
+            />
+          </div>
+        )}
 
         {comparingCities.length > 0 && (
           <div className="flex flex-wrap gap-2 mb-4">
@@ -218,6 +272,7 @@ function CitiesPage() {
               onWeightsChange={setWeights}
               preferredTemp={preferredTemp}
               onPreferredTempChange={setPreferredTemp}
+              isPendingUpdate={isPendingWeightUpdate}
             />
           </aside>
 

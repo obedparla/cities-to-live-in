@@ -28,6 +28,7 @@ import {
   Wifi,
 } from 'lucide-react'
 import { CATEGORIES, type CategoryKey } from '../../../convex/scoring'
+import { countryName } from '@/lib/countries'
 
 export const Route = createFileRoute('/cities/$cityId' as never)({
   component: CityDetailPage,
@@ -99,40 +100,6 @@ function formatRawValue(category: CategoryKey, value: number): string {
   }
 }
 
-const COUNTRY_NAMES: Record<string, string> = {
-  AT: 'Austria',
-  BE: 'Belgium',
-  BG: 'Bulgaria',
-  HR: 'Croatia',
-  CY: 'Cyprus',
-  CZ: 'Czechia',
-  DK: 'Denmark',
-  EE: 'Estonia',
-  FI: 'Finland',
-  FR: 'France',
-  DE: 'Germany',
-  GR: 'Greece',
-  HU: 'Hungary',
-  IE: 'Ireland',
-  IT: 'Italy',
-  LV: 'Latvia',
-  LT: 'Lithuania',
-  LU: 'Luxembourg',
-  MT: 'Malta',
-  NL: 'Netherlands',
-  PL: 'Poland',
-  PT: 'Portugal',
-  RO: 'Romania',
-  SK: 'Slovakia',
-  SI: 'Slovenia',
-  ES: 'Spain',
-  SE: 'Sweden',
-  NO: 'Norway',
-  CH: 'Switzerland',
-  UK: 'United Kingdom',
-  GB: 'United Kingdom',
-}
-
 function ScoreBar({ score }: { score: number | null }) {
   if (score === null) return <span className="text-gray-400">N/A</span>
   const clampedScore = Math.min(100, Math.max(0, score))
@@ -195,7 +162,7 @@ function CityDetailPage() {
                 </CardTitle>
                 <p className="text-gray-500 flex items-center gap-2 mt-2">
                   <MapPin size={16} />
-                  {COUNTRY_NAMES[city.country] || city.country}
+                  {countryName(city.country)}
                 </p>
               </div>
               <div className="text-right">

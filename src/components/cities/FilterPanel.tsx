@@ -1,7 +1,7 @@
 import { Slider } from '@/components/ui/slider'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { RotateCcw, Thermometer } from 'lucide-react'
+import { Loader2, RotateCcw, Thermometer } from 'lucide-react'
 import { CATEGORIES, type CategoryKey } from '../../../convex/scoring'
 
 interface FilterPanelProps {
@@ -9,6 +9,7 @@ interface FilterPanelProps {
   onWeightsChange: (weights: Record<string, number>) => void
   preferredTemp: number
   onPreferredTempChange: (temp: number) => void
+  isPendingUpdate?: boolean
 }
 
 export function FilterPanel({
@@ -16,6 +17,7 @@ export function FilterPanel({
   onWeightsChange,
   preferredTemp,
   onPreferredTempChange,
+  isPendingUpdate,
 }: FilterPanelProps) {
   const handleWeightChange = (key: string, value: number[]) => {
     onWeightsChange({ ...weights, [key]: value[0] })
@@ -31,8 +33,8 @@ export function FilterPanel({
   }
 
   return (
-    <Card className="sticky top-4">
-      <CardHeader className="pb-2">
+    <Card className="sticky top-4 max-h-[calc(100vh-2rem)] flex flex-col gap-0 py-0">
+      <CardHeader className="pb-2 pt-4 shrink-0 border-b">
         <div className="flex items-center justify-between">
           <CardTitle className="text-lg">Adjust Weights</CardTitle>
           <Button variant="ghost" size="sm" onClick={resetWeights}>
@@ -43,8 +45,14 @@ export function FilterPanel({
         <p className="text-xs text-gray-500">
           0.5x = less important, 3x = more important
         </p>
+        {isPendingUpdate && (
+          <p className="text-xs text-blue-600 flex items-center gap-1 mt-1">
+            <Loader2 size={12} className="animate-spin" />
+            Applying changes in 3s…
+          </p>
+        )}
       </CardHeader>
-      <CardContent className="space-y-4">
+      <CardContent className="space-y-4 overflow-y-auto py-4 flex-1 min-h-0">
         <div className="pb-4 border-b">
           <div className="flex items-center gap-2 mb-2">
             <Thermometer size={16} className="text-orange-500" />

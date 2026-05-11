@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { Search, X } from 'lucide-react'
 import { Input } from '@/components/ui/input'
+import { countryFlag } from '@/lib/countries'
 
 interface City {
   _id: string
@@ -13,40 +14,6 @@ interface SearchAutocompleteProps {
   value: string
   onChange: (value: string) => void
   onSelect?: (city: City) => void
-}
-
-const COUNTRY_FLAGS: Record<string, string> = {
-  AT: '\uD83C\uDDE6\uD83C\uDDF9',
-  BE: '\uD83C\uDDE7\uD83C\uDDEA',
-  BG: '\uD83C\uDDE7\uD83C\uDDEC',
-  HR: '\uD83C\uDDED\uD83C\uDDF7',
-  CY: '\uD83C\uDDE8\uD83C\uDDFE',
-  CZ: '\uD83C\uDDE8\uD83C\uDDFF',
-  DK: '\uD83C\uDDE9\uD83C\uDDF0',
-  EE: '\uD83C\uDDEA\uD83C\uDDEA',
-  FI: '\uD83C\uDDEB\uD83C\uDDEE',
-  FR: '\uD83C\uDDEB\uD83C\uDDF7',
-  DE: '\uD83C\uDDE9\uD83C\uDDEA',
-  GR: '\uD83C\uDDEC\uD83C\uDDF7',
-  HU: '\uD83C\uDDED\uD83C\uDDFA',
-  IE: '\uD83C\uDDEE\uD83C\uDDEA',
-  IT: '\uD83C\uDDEE\uD83C\uDDF9',
-  LV: '\uD83C\uDDF1\uD83C\uDDFB',
-  LT: '\uD83C\uDDF1\uD83C\uDDF9',
-  LU: '\uD83C\uDDF1\uD83C\uDDFA',
-  MT: '\uD83C\uDDF2\uD83C\uDDF9',
-  NL: '\uD83C\uDDF3\uD83C\uDDF1',
-  PL: '\uD83C\uDDF5\uD83C\uDDF1',
-  PT: '\uD83C\uDDF5\uD83C\uDDF9',
-  RO: '\uD83C\uDDF7\uD83C\uDDF4',
-  SK: '\uD83C\uDDF8\uD83C\uDDF0',
-  SI: '\uD83C\uDDF8\uD83C\uDDEE',
-  ES: '\uD83C\uDDEA\uD83C\uDDF8',
-  SE: '\uD83C\uDDF8\uD83C\uDDEA',
-  NO: '\uD83C\uDDF3\uD83C\uDDF4',
-  CH: '\uD83C\uDDE8\uD83C\uDDED',
-  UK: '\uD83C\uDDEC\uD83C\uDDE7',
-  GB: '\uD83C\uDDEC\uD83C\uDDE7',
 }
 
 export function SearchAutocomplete({
@@ -160,7 +127,7 @@ export function SearchAutocomplete({
                 index === highlightedIndex ? 'bg-gray-100' : ''
               }`}
             >
-              <span>{COUNTRY_FLAGS[city.country] || ''}</span>
+              <span>{countryFlag(city.country)}</span>
               <span className="font-medium">{city.name}</span>
               <span className="text-gray-400 text-sm">{city.country}</span>
             </button>
